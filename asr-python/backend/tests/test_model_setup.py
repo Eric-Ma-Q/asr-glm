@@ -89,7 +89,14 @@ class LocalApiTest(unittest.TestCase):
     def test_empty_library_and_model_status_start_without_weights(self):
         with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {"GLM_ASR_DATA_DIR": folder}):
             from main import app, model_setups
+            from cosyvoice.cli.frontend import TTSFrontEnd
+            from llm.glmtts import GLMTTS
+            from utils.file_utils import read_audio
+            from utils.hift_util import HiFTInference
 
+            self.assertTrue(callable(TTSFrontEnd))
+            self.assertTrue(callable(GLMTTS))
+            self.assertTrue(callable(HiFTInference))
             with TestClient(app, base_url="http://127.0.0.1") as client:
                 self.assertEqual(client.get("/api/recordings").json(), {"recordings": []})
                 if (Path(__file__).resolve().parents[2] / "frontend" / "dist").is_dir():
@@ -114,3 +121,6 @@ class LocalApiTest(unittest.TestCase):
                 self.assertEqual(len(recordings), 1)
                 self.assertEqual(recordings[0]["prompt_text"], "最后一段")
                 self.assertAlmostEqual(recordings[0]["duration"], 0.1)
+                samples, rate = read_audio(recordings[0]["filepath"])
+                self.assertEqual(rate, 16000)
+                self.assertEqual(samples.shape, (1, 1600))

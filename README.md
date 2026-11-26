@@ -14,7 +14,7 @@
 ```sh
 git clone https://github.com/Eric-Ma-Q/asr-glm.git
 cd asr-glm
-conda create -n asr-glm -c conda-forge python=3.11 pynini=2.1.7 ffmpeg
+conda create -n asr-glm -c conda-forge python=3.11 pynini=2.1.5 ffmpeg
 conda activate asr-glm
 python -m pip install -r asr-python/backend/requirements.txt
 npm --prefix asr-python/frontend ci

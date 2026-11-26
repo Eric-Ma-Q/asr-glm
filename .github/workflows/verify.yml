@@ -27,7 +27,7 @@ jobs:
       - name: Install Python dependencies
         shell: bash -el {0}
         run: |
-          conda install -y -c conda-forge pynini=2.1.7 ffmpeg
+          conda install -y -c conda-forge pynini=2.1.5 ffmpeg
           python -m pip install -r asr-python/backend/requirements.txt httpx
           python -m pip check
       - name: Build frontend
