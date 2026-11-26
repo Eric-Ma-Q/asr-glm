@@ -90,6 +90,7 @@ class LocalApiTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {"GLM_ASR_DATA_DIR": folder}):
             from main import app, model_setups
             from cosyvoice.cli.frontend import TTSFrontEnd
+            from cosyvoice.utils.frontend_utils import count_syllables
             from llm.glmtts import GLMTTS
             from utils.file_utils import read_audio
             from utils.hift_util import HiFTInference
@@ -97,6 +98,8 @@ class LocalApiTest(unittest.TestCase):
             self.assertTrue(callable(TTSFrontEnd))
             self.assertTrue(callable(GLMTTS))
             self.assertTrue(callable(HiFTInference))
+            self.assertEqual(count_syllables("Careful"), 2)
+            self.assertEqual(count_syllables("zzzzz"), 1)
             with TestClient(app, base_url="http://127.0.0.1") as client:
                 self.assertEqual(client.get("/api/recordings").json(), {"recordings": []})
                 if (Path(__file__).resolve().parents[2] / "frontend" / "dist").is_dir():

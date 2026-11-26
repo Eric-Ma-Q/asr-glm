@@ -13,10 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from functools import cache
 import re
 import unicodedata
+import cmudict
 import emoji
-import pronouncing
 
 # Regular expression constants
 CHINESE_CHAR_PATTERN = re.compile(r'[\u4e00-\u9fff]+')
@@ -143,12 +144,18 @@ def count_syllables_re(word):
     return max(len(syllables), 1)
 
 
+# Modified for asr-glm to use the CMU dictionary without the deprecated pkg_resources.
+@cache
+def _pronunciations():
+    return cmudict.dict()
+
+
 def count_syllables(word):
-    """Count syllables in a word using 'pronouncing' lib or fallback regex."""
-    try:
-        return pronouncing.syllable_count(pronouncing.phones_for_word(word)[0])
-    except:
-        return max(count_syllables_re(word), 1)
+    """Count vowel stress markers, using a spelling heuristic for unknown words."""
+    pronunciations = _pronunciations().get(word.lower())
+    if pronunciations:
+        return sum(phone[-1:] in ("0", "1", "2") for phone in pronunciations[0])
+    return count_syllables_re(word)
     
 
 def count_char(units): 
