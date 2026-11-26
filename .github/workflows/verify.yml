@@ -1,0 +1,40 @@
+name: Verify
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - uses: conda-incubator/setup-miniconda@v4
+        with:
+          miniforge-version: latest
+          activate-environment: asr-glm
+          channels: conda-forge
+          python-version: '3.11'
+      - name: Install Python dependencies
+        shell: bash -el {0}
+        run: |
+          conda install -y -c conda-forge pynini=2.1.7 ffmpeg
+          python -m pip install -r asr-python/backend/requirements.txt httpx
+          python -m pip check
+      - name: Build frontend
+        run: |
+          npm --prefix asr-python/frontend ci
+          npm --prefix asr-python/frontend run build
+          npm --prefix asr-python/frontend run lint
+      - name: Test backend without model downloads
+        shell: bash -el {0}
+        run: python -m unittest discover -s asr-python/backend/tests -v

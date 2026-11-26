@@ -1,0 +1,39 @@
+# FastAPI 框架
+fastapi
+uvicorn
+python-multipart
+websockets
+
+# 核心依赖 (PyTorch 生态)
+numpy==1.26.4
+torch==2.9.1
+torchaudio==2.9.1
+transformers==4.51.3
+huggingface_hub==0.36.0
+requests>=2.32,<3
+accelerate>=1,<2
+safetensors
+
+# ASR 相关 (GLM-ASR)
+silero-vad==6.2.0
+
+# TTS 相关 (GLM-TTS)
+pyyaml
+scipy
+soundfile
+librosa>=0.10,<0.12
+sentencepiece
+tiktoken
+einops
+pypinyin
+zhconv
+HyperPyYAML
+contractions==0.1.73
+emoji>=2,<3
+inflect==7.3.1
+jieba==0.42.1
+onnxruntime>=1.23,<2
+peft==0.7.0
+pronouncing==0.2.0
+WeTextProcessing==1.0.3
+x-transformers==1.42.26
