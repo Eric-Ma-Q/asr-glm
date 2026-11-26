@@ -15,6 +15,22 @@ function RecordingList({ ttsLoaded, openModels }) {
     const [editingText, setEditingText] = useState(""); // 编辑中的文本
     const audioRefs = useRef({});
     const importInput = useRef(null);
+    const cloneDialog = useRef(null);
+    const isCloneOpen = Boolean(cloneModal);
+    const cloneBusy = Boolean(cloneProgress && cloneProgress.status !== 'error');
+
+    useEffect(() => {
+        if (!isCloneOpen) return;
+        const dialog = cloneDialog.current;
+        dialog.showModal();
+        return () => dialog.close();
+    }, [isCloneOpen]);
+
+    const closeCloneModal = () => {
+        cloneDialog.current?.close();
+        setCloneModal(null);
+        setCloneProgress(null);
+    };
 
     // 获取录音列表
     const fetchRecordings = useCallback((signal) => {
@@ -156,6 +172,7 @@ function RecordingList({ ttsLoaded, openModels }) {
             return;
         }
 
+        setCloneProgress({ progress: 0, message: '准备中...' });
         try {
             // 先更新 prompt_text
             await fetch(`/api/recordings/${cloneModal.recording.id}/prompt_text`, {
@@ -176,12 +193,12 @@ function RecordingList({ ttsLoaded, openModels }) {
             });
             const data = await res.json();
 
-            if (data.task_id) {
-                setCloneProgress({ taskId: data.task_id, progress: 0, message: '准备中...' });
-                pollProgress(data.task_id);
+            if (!res.ok || !data?.task_id) {
+                throw new Error(typeof data?.detail === 'string' ? data.detail : '请重试。');
             }
+            pollProgress(data.task_id);
         } catch (err) {
-            alert('启动克隆失败: ' + err.message);
+            setCloneProgress({ status: 'error', message: `启动克隆失败，${err.message}` });
         }
     };
 
@@ -190,9 +207,9 @@ function RecordingList({ ttsLoaded, openModels }) {
         try {
             const res = await fetch(`/api/clone_voice/${taskId}/progress`);
             const data = await res.json();
+            if (!res.ok) throw new Error('无法读取克隆进度');
 
             setCloneProgress({
-                taskId,
                 progress: data.progress,
                 message: data.message,
                 status: data.status,
@@ -203,15 +220,11 @@ function RecordingList({ ttsLoaded, openModels }) {
                 setTimeout(() => pollProgress(taskId), 500);
             } else if (data.status === 'completed') {
                 fetchRecordings();
-                setTimeout(() => {
-                    setCloneModal(null);
-                    setCloneProgress(null);
-                }, 2000);
-            } else if (data.status === 'error') {
-                alert('克隆失败: ' + data.message);
+                setTimeout(closeCloneModal, 2000);
             }
         } catch (err) {
             console.error('Poll progress error:', err);
+            setCloneProgress({ status: 'error', message: '无法读取克隆进度，请检查连接后重试。' });
         }
     };
 
@@ -368,40 +381,54 @@ function RecordingList({ ttsLoaded, openModels }) {
 
             {/* 克隆模态框 */}
             {cloneModal && (
-                <div className="modal-overlay" onClick={() => !cloneProgress && setCloneModal(null)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <h3>语音克隆</h3>
+                <dialog
+                    ref={cloneDialog}
+                    className="clone-dialog"
+                    aria-labelledby="clone-title"
+                    onCancel={event => {
+                        event.preventDefault();
+                        if (!cloneBusy) closeCloneModal();
+                    }}
+                    onClick={event => {
+                        if (event.target === event.currentTarget && !cloneBusy) closeCloneModal();
+                    }}
+                >
+                    <div className="clone-dialog-content">
+                        <h3 id="clone-title">语音克隆</h3>
 
-                        <div className="form-group">
-                            <label>录音中说的话（用于音色提取）:</label>
-                            <textarea
-                                value={cloneModal.promptText}
-                                onChange={e => setCloneModal({ ...cloneModal, promptText: e.target.value })}
-                                placeholder="请输入你在录音中说的话..."
-                                rows={3}
-                                disabled={!!cloneProgress}
-                            />
+                        <div className="clone-dialog-body">
+                            <div className="form-group">
+                                <label htmlFor="clone-prompt">录音中说的话（用于音色提取）</label>
+                                <textarea
+                                    id="clone-prompt"
+                                    value={cloneModal.promptText}
+                                    onChange={e => setCloneModal({ ...cloneModal, promptText: e.target.value })}
+                                    placeholder="请输入你在录音中说的话..."
+                                    rows={3}
+                                    disabled={cloneBusy}
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label htmlFor="clone-text">要合成的文本</label>
+                                <textarea
+                                    id="clone-text"
+                                    value={cloneModal.synText}
+                                    onChange={e => setCloneModal({ ...cloneModal, synText: e.target.value })}
+                                    placeholder="请输入要用克隆的声音说的话..."
+                                    rows={3}
+                                    disabled={cloneBusy}
+                                />
+                            </div>
+
                         </div>
 
-                        <div className="form-group">
-                            <label>要合成的文本:</label>
-                            <textarea
-                                value={cloneModal.synText}
-                                onChange={e => setCloneModal({ ...cloneModal, synText: e.target.value })}
-                                placeholder="请输入要用克隆的声音说的话..."
-                                rows={3}
-                                disabled={!!cloneProgress}
-                            />
-                        </div>
-
-                        {cloneProgress && (
+                        {cloneProgress?.status === 'error' && (
+                            <p className="clone-error" role="alert">{cloneProgress.message}</p>
+                        )}
+                        {cloneBusy ? (
                             <div className="progress-section">
-                                <div className="progress-bar">
-                                    <div
-                                        className="progress-fill"
-                                        style={{ width: `${cloneProgress.progress}%` }}
-                                    />
-                                </div>
+                                <progress className="clone-progress" aria-label="克隆进度" value={cloneProgress.progress} max={100} />
                                 <div className="progress-text">
                                     {cloneProgress.message} ({cloneProgress.progress}%)
                                 </div>
@@ -410,7 +437,7 @@ function RecordingList({ ttsLoaded, openModels }) {
                                         <button
                                             className="btn-play-result"
                                             onClick={() => {
-                                                const audio = new Audio(`${cloneProgress.outputUrl}`);
+                                                const audio = new Audio(cloneProgress.outputUrl);
                                                 audio.play();
                                             }}
                                         >
@@ -419,22 +446,18 @@ function RecordingList({ ttsLoaded, openModels }) {
                                     </div>
                                 )}
                             </div>
+                        ) : (
+                            <div className="modal-actions">
+                                <button className="btn-cancel" onClick={closeCloneModal}>
+                                    取消
+                                </button>
+                                <button className="btn-start" onClick={startClone}>
+                                    开始克隆
+                                </button>
+                            </div>
                         )}
-
-                        <div className="modal-actions">
-                            {!cloneProgress && (
-                                <>
-                                    <button className="btn-cancel" onClick={() => setCloneModal(null)}>
-                                        取消
-                                    </button>
-                                    <button className="btn-start" onClick={startClone}>
-                                        开始克隆
-                                    </button>
-                                </>
-                            )}
-                        </div>
                     </div>
-                </div>
+                </dialog>
             )}
         </div>
     );

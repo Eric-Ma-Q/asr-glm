@@ -1,146 +1,146 @@
-
-import { useRef, useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 const MAX_CANVAS_PIXELS = 1280 * 720;
+const WAVE_OPACITIES = [0.28, 0.62, 0.38, 0.18];
+const TAU = Math.PI * 2;
+const fraction = value => value - Math.floor(value);
+const particles = Array.from({ length: 64 }, (_, index) => ({
+    x: fraction(index * 0.618 + 0.13),
+    lane: index % WAVE_OPACITIES.length,
+    offset: (fraction(index * 0.414) - 0.5) * 48,
+    speed: 0.003 + fraction(index * 0.73) * 0.004,
+    phase: index * 2.4,
+    size: index % 7 === 0 ? 7 : 4,
+    warm: index % 3 === 0,
+}));
 
-function createGlowSprite(hue) {
+function createGlowSprite(color) {
     const sprite = document.createElement('canvas');
-    const radius = 24;
-    sprite.width = sprite.height = radius * 2;
-
+    sprite.width = sprite.height = 32;
     const ctx = sprite.getContext('2d');
-    const glow = ctx.createRadialGradient(radius, radius, 0, radius, radius, radius);
-    glow.addColorStop(0, `hsl(${hue}, 90%, 70%)`);
-    glow.addColorStop(0.15, `hsla(${hue}, 90%, 60%, 0.85)`);
-    glow.addColorStop(0.45, `hsla(${hue}, 90%, 60%, 0.18)`);
-    glow.addColorStop(1, `hsla(${hue}, 90%, 60%, 0)`);
+    const glow = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    glow.addColorStop(0, 'rgba(255, 250, 237, 1)');
+    glow.addColorStop(0.13, `rgba(${color}, 0.9)`);
+    glow.addColorStop(0.32, `rgba(${color}, 0.25)`);
+    glow.addColorStop(1, `rgba(${color}, 0)`);
     ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, sprite.width, sprite.height);
+    ctx.fillRect(0, 0, 32, 32);
     return sprite;
+}
+
+function waveY(x, lane, height, time, level) {
+    const amplitude = Math.min(height * 0.095, 78) * (1 + level * 0.6);
+    const wave = Math.sin((x * 1.12 - 0.12) * TAU + Math.sin(time * 0.18) * 0.48);
+    const spread = 5 + 12 * Math.sin(x * Math.PI);
+    return height * 0.76 + wave * amplitude + (lane - 1.5) * spread;
 }
 
 const AudioVisualizer = ({ analyser, isRecording }) => {
     const canvasRef = useRef(null);
 
     useEffect(() => {
-        if (!canvasRef.current) return;
         const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d', { alpha: false });
+        const ctx = canvas?.getContext('2d');
         if (!ctx) return;
-        let animationId;
+
+        const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const coolGlow = createGlowSprite('147, 181, 245');
+        const warmGlow = createGlowSprite('246, 210, 151');
+        const samples = analyser && isRecording ? new Uint8Array(analyser.fftSize) : null;
         let width;
         let height;
+        let gradient;
+        let animationId;
+        let lastFrame = -Infinity;
+        let level = 0;
 
-        const resize = () => {
-            const parent = canvas.parentElement;
-            width = Math.max(1, parent.clientWidth);
-            height = Math.max(1, parent.clientHeight);
-            // Bound the raster cost of the full-screen background on high-DPI displays.
-            const scale = Math.min(window.devicePixelRatio || 1, Math.sqrt(MAX_CANVAS_PIXELS / (width * height)));
-            canvas.width = Math.max(1, Math.round(width * scale));
-            canvas.height = Math.max(1, Math.round(height * scale));
-            ctx.setTransform(canvas.width / width, 0, 0, canvas.height / height, 0, 0);
-            ctx.fillStyle = '#050510';
-            ctx.fillRect(0, 0, width, height);
-        };
-        window.addEventListener('resize', resize);
-        resize();
+        const draw = time => {
+            ctx.clearRect(0, 0, width, height);
+            ctx.strokeStyle = gradient;
+            ctx.lineWidth = 1;
 
-        const sprites = [200, 213, 226, 239].map(createGlowSprite);
-        const particles = Array.from({ length: 180 }, () => ({
-            x: Math.random() * width,
-            y: Math.random() * height,
-            vx: (Math.random() - 0.5) * 0.8,
-            vy: (Math.random() - 0.5) * 0.8,
-            size: Math.random() * 1.5 + 0.5,
-            baseAlpha: Math.random() * 0.5 + 0.2,
-            sprite: sprites[Math.floor(Math.random() * sprites.length)],
-        }));
-
-        const dataArray = new Uint8Array(analyser && isRecording ? analyser.frequencyBinCount : 0);
-
-        const draw = () => {
-            // Clear with longer trail effect for smoothness
-            ctx.fillStyle = 'rgba(5, 5, 16, 0.15)';
-            ctx.fillRect(0, 0, width, height);
-
-            if (dataArray.length > 0) {
-                analyser.getByteFrequencyData(dataArray);
-            }
-
-            // Global composite operation for glow effect
-            ctx.globalCompositeOperation = 'lighter';
-
-            // Update and draw particles
-            particles.forEach((p) => {
-                // Audio reactivity
-                // Map x position to frequency index
-                const freqIndex = Math.floor((p.x / width) * dataArray.length);
-                const audioValue = dataArray[freqIndex] || 0;
-
-                // Gentler reaction
-                const scale = 1 + (audioValue / 255) * 2.5;
-                const speedBoost = 1 + (audioValue / 255) * 2;
-
-                p.x += p.vx * speedBoost;
-                p.y += p.vy * speedBoost;
-
-                // Wrap around instead of bounce for flow feel
-                if (p.x < 0) p.x = width;
-                if (p.x > width) p.x = 0;
-                if (p.y < 0) p.y = height;
-                if (p.y > height) p.y = 0;
-
-                const radius = (p.size + 8) * scale;
-                ctx.globalAlpha = p.baseAlpha;
-                ctx.drawImage(p.sprite, p.x - radius, p.y - radius, radius * 2, radius * 2);
-            });
-
-            ctx.globalAlpha = 1;
-            ctx.globalCompositeOperation = 'source-over'; // Reset
-
-            // Waveform Line - More subtle
-            if (isRecording && dataArray.length > 0) {
+            for (const [lane, opacity] of WAVE_OPACITIES.entries()) {
+                ctx.globalAlpha = opacity;
                 ctx.beginPath();
-                ctx.strokeStyle = 'rgba(0, 230, 255, 0.4)'; // Lower opacity
-                ctx.lineWidth = 1.5;
-
-                const sliceWidth = width / dataArray.length;
-                let x = 0;
-
-                // Move to first point
-                ctx.moveTo(0, height / 2);
-
-                for (let i = 0; i < dataArray.length; i++) {
-                    const v = dataArray[i] / 128.0; // 0..2
-                    const y = (height / 2) + (v - 1) * (height / 6); // Reduced amplitude
-
-                    // Quadratic curve for smoothness
-                    if (i === 0) {
-                        ctx.moveTo(x, y);
-                    } else {
-                        const prevX = x - sliceWidth;
-                        const prevY = (height / 2) + (dataArray[i - 1] / 128.0 - 1) * (height / 6);
-                        const cpX = (prevX + x) / 2;
-                        ctx.quadraticCurveTo(cpX, prevY, x, y);
-                    }
-                    x += sliceWidth;
+                ctx.moveTo(0, waveY(0, lane, height, time, level));
+                for (let step = 1; step <= 80; step++) {
+                    const x = step / 80;
+                    ctx.lineTo(x * width, waveY(x, lane, height, time, level));
                 }
                 ctx.stroke();
             }
 
-            animationId = requestAnimationFrame(draw);
+            const count = Math.min(particles.length, Math.max(20, Math.round(width / 20)));
+            for (let i = 0; i < count; i++) {
+                const particle = particles[i];
+                const x = fraction(particle.x + time * particle.speed);
+                const y = waveY(x, particle.lane, height, time, level) + particle.offset;
+                const shimmer = 0.7 + 0.17 * Math.sin(time * 0.6 + particle.phase);
+                const radius = particle.size * (1 + level * 0.24);
+                ctx.globalAlpha = Math.sin(x * Math.PI) * shimmer * (0.85 + level * 0.15);
+                ctx.drawImage(particle.warm ? warmGlow : coolGlow, x * width - radius, y - radius, radius * 2, radius * 2);
+            }
+            ctx.globalAlpha = 1;
         };
 
-        draw();
+        const animate = timestamp => {
+            const elapsed = timestamp - lastFrame;
+            if (elapsed >= 32) {
+                if (samples) {
+                    analyser.getByteTimeDomainData(samples);
+                    let energy = 0;
+                    for (const sample of samples) energy += ((sample - 128) / 128) ** 2;
+                    const target = Math.min(1, Math.sqrt(energy / samples.length) * 4);
+                    level += (target - level) * (1 - Math.exp(-elapsed / 180));
+                }
+                lastFrame = timestamp;
+                draw(timestamp / 1000);
+            }
+            animationId = requestAnimationFrame(animate);
+        };
+
+        const resize = () => {
+            width = Math.max(1, canvas.clientWidth);
+            height = Math.max(1, canvas.clientHeight);
+            // Keep the full-screen canvas within the raster budget on high-DPI displays.
+            const scale = Math.min(window.devicePixelRatio || 1, Math.sqrt(MAX_CANVAS_PIXELS / (width * height)));
+            canvas.width = Math.max(1, Math.round(width * scale));
+            canvas.height = Math.max(1, Math.round(height * scale));
+            ctx.setTransform(canvas.width / width, 0, 0, canvas.height / height, 0, 0);
+            gradient = ctx.createLinearGradient(0, 0, width, 0);
+            gradient.addColorStop(0, 'rgba(83, 124, 211, 0)');
+            gradient.addColorStop(0.18, 'rgba(83, 124, 211, 0.65)');
+            gradient.addColorStop(0.53, 'rgba(224, 193, 146, 0.78)');
+            gradient.addColorStop(0.82, 'rgba(133, 161, 225, 0.6)');
+            gradient.addColorStop(1, 'rgba(83, 124, 211, 0)');
+            draw(motion.matches ? 0 : performance.now() / 1000);
+        };
+
+        const updateMotion = () => {
+            cancelAnimationFrame(animationId);
+            if (motion.matches) {
+                level = 0;
+                draw(0);
+            } else {
+                lastFrame = -Infinity;
+                animationId = requestAnimationFrame(animate);
+            }
+        };
+
+        const observer = new ResizeObserver(resize);
+        observer.observe(canvas);
+        motion.addEventListener('change', updateMotion);
+        resize();
+        updateMotion();
 
         return () => {
-            window.removeEventListener('resize', resize);
+            observer.disconnect();
+            motion.removeEventListener('change', updateMotion);
             cancelAnimationFrame(animationId);
         };
     }, [analyser, isRecording]);
 
-    return <canvas ref={canvasRef} className="visualizer-canvas" />;
+    return <canvas ref={canvasRef} className="visualizer-canvas" aria-hidden="true" />;
 };
 
 export default AudioVisualizer;

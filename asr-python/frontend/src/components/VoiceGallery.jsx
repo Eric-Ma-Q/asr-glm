@@ -121,7 +121,7 @@ function VoiceGallery() {
     return (
         <div className="voice-gallery">
             <div className="gallery-header">
-                <h2>🎙️ 我的克隆声音</h2>
+                <h2>我的声音</h2>
                 <button className="btn-refresh" onClick={() => fetchVoices()}>
                     刷新
                 </button>
@@ -129,7 +129,6 @@ function VoiceGallery() {
 
             {voices.length === 0 ? (
                 <div className="empty-state">
-                    <div className="empty-icon">🔊</div>
                     <p>暂无克隆声音</p>
                     <p className="hint">在「录音管理」中选择录音并克隆音色</p>
                 </div>
@@ -174,10 +173,10 @@ function VoiceGallery() {
                                 {/* 操作按钮 */}
                                 <div className="voice-actions">
                                     <button className="btn-action download" onClick={() => downloadVoice(voice)}>
-                                        ⬇ 下载
+                                        下载
                                     </button>
                                     <button className="btn-action delete" onClick={() => deleteVoice(voice.id)}>
-                                        🗑 删除
+                                        删除
                                     </button>
                                 </div>
                             </div>

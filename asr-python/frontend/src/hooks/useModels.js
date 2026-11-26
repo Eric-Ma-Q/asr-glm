@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 export function useModels() {
   const [models, setModels] = useState({});
+  const [serviceStatus, setServiceStatus] = useState('checking');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -13,9 +14,9 @@ export function useModels() {
         const response = await fetch('/api/models', { signal: controller.signal });
         if (!response.ok) throw new Error();
         setModels(await response.json());
-        setError(previous => previous === '无法连接本地服务。' ? '' : previous);
+        setServiceStatus('online');
       } catch {
-        if (!controller.signal.aborted) setError('无法连接本地服务。');
+        if (!controller.signal.aborted) setServiceStatus('offline');
       } finally {
         if (!controller.signal.aborted) timer = window.setTimeout(poll, 1200);
       }
@@ -40,5 +41,5 @@ export function useModels() {
     }
   }
 
-  return { models, error, prepare };
+  return { models, serviceStatus, error, prepare };
 }
