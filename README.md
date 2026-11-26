@@ -2,6 +2,17 @@
 
 在浏览器录音、实时转写、管理音频和克隆语音。模型首次使用时可在页面下载，之后可以离线推理。录音、转写和生成的音频保存在本机。
 
+## 界面预览
+
+[![实时转录界面，录音时显示转写文本](docs/screenshots/transcription.webp)](docs/screenshots/transcription.webp)
+
+<p align="center">
+  <a href="docs/screenshots/recordings.webp"><img src="docs/screenshots/recordings.webp" width="49%" alt="录音管理界面，可回放音频和编辑转写"></a>
+  <a href="docs/screenshots/voice-clone.webp"><img src="docs/screenshots/voice-clone.webp" width="49%" alt="语音克隆界面，填写录音原文与要合成的文本"></a>
+</p>
+
+截图使用示例数据，点击可查看原图。
+
 ## Windows 和 macOS 安装
 
 - Windows 10/11 x64，支持 CPU 和配置了 CUDA 的 NVIDIA GPU
